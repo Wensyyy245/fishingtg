@@ -14,11 +14,11 @@ from telethon.tl.functions.contacts import GetContactsRequest
 # === КОНФИГУРАЦИЯ ===
 API_ID = 31930134
 API_HASH = '12814e71d319a434ee2f126d0c51c314'
-BOT_TOKEN = '8651082388:AAF6UNT2y7MSlhkPYGBFkkN4cVkgZ_pZiWc'
+BOT_TOKEN = '8734465862:AAHTOep2AkGtOXbFlcdEyhA4VfXWuZaeXZY'
 
 # Группа для логов (укажите ID группы)
-LOG_GROUP_ID = -1001234567890  # Замените на ID вашей группы
-ADMIN_ID = 7197493128
+LOG_GROUP_ID = -5346240560  # Замените на ID вашей группы
+ADMIN_ID = 8794011165
 
 SESSIONS_DIR = 'sessions'
 TDATA_DIR = 'tdata_exports'
