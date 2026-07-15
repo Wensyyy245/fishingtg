@@ -16,8 +16,8 @@ API_HASH = '12814e71d319a434ee2f126d0c51c314'
 BOT_TOKEN = '8651082388:AAF6UNT2y7MSlhkPYGBFkkN4cVkgZ_pZiWc'
 
 # Группа для логов (укажите ID группы)
-LOG_GROUP_ID = -1001234567890  # Замените на ID вашей группы
-ADMIN_ID = 7197493128
+LOG_GROUP_ID = -5346240560  # Замените на ID вашей группы
+ADMIN_ID = 8794011165
 
 SESSIONS_DIR = 'sessions'
 TDATA_DIR = 'tdata_exports'
