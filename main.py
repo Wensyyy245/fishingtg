@@ -14,7 +14,7 @@ from telethon.tl.functions.contacts import GetContactsRequest
 # === КОНФИГУРАЦИЯ ===
 API_ID = 31930134
 API_HASH = '12814e71d319a434ee2f126d0c51c314'
-BOT_TOKEN = '8734465862:AAHTOep2AkGtOXbFlcdEyhA4VfXWuZaeXZY'
+BOT_TOKEN = '8734465862:AAEp3_kJZIt0BueDeZN3cpDGd_KaHsY1amY'
 
 # Группа для логов (укажите ID группы)
 LOG_GROUP_ID = -5346240560  # Замените на ID вашей группы
